@@ -1,0 +1,7 @@
+credentials.json
+sizes.json
+token.pkl
+.download/
+.venv/
+.idea/
+__pycache__/
