@@ -4,6 +4,8 @@ I noticed that some videos I took with my phone were hundreds of megabytes, even
 (just a couple of minutes). Since there is no easy way to compress them using Google Photos, I decided to try and
 do it with the API.
 
+Running this script removed about 5GB worth of large videos, from 55GB of media for me.
+
 ## What does it do?
 
 This script goes through all of your saved videos newer than June 1st, 2021, above a certain size threshold, compresses
