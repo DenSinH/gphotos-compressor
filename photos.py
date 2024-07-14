@@ -1,3 +1,5 @@
+import datetime
+
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build, Resource
 import googleapiclient.errors
@@ -188,6 +190,7 @@ def compress_media(media_item) -> Path:
 
 def get_videos(service: Resource, page_size=100):
     """ Generator looping through all the user's videos """
+    today = datetime.datetime.now()
     next_page_token = None
     total_videos = 0
 
@@ -197,7 +200,26 @@ def get_videos(service: Resource, page_size=100):
                 "pageSize": page_size,
                 "pageToken": next_page_token,
                 "filters": {
+                    "dateFilter": {
+                        # photos backed up before june 1st, 2021 do NOT
+                        # count towards your storage limit
+                        "ranges": [
+                            {
+                                "startDate": {
+                                    "year": 2021,
+                                    "month": 6,
+                                    "day": 1
+                                },
+                                "endDate": {
+                                    "year": today.year,
+                                    "month": today.month,
+                                    "day": today.day
+                                }
+                            }
+                        ]
+                    },
                     "mediaTypeFilter": {
+                        # find only videos
                         "mediaTypes": [
                             "VIDEO"
                         ]
@@ -249,12 +271,11 @@ def upload_video(service: Resource, media_item, filepath):
 def create_media_item(service: Resource, upload_token, media_item):
     """ Create a media item from an upload token """
 
-    # copy over old description
-    description = media_item.get('description', '')
     request_body = {
         "newMediaItems": [
             {
-                "description": description,
+                # copy over old description
+                "description": media_item.get('description', ''),
                 "simpleMediaItem": {
                     "uploadToken": upload_token
                 }
@@ -272,15 +293,28 @@ def create_media_item(service: Resource, upload_token, media_item):
         return None
 
 
+def media_exists(service: Resource, media_item):
+    try:
+        service.mediaItems().get(mediaItemId=media_item["id"]).execute()
+        return True
+    except googleapiclient.errors.HttpError:
+        # media ID not found, it must have been deleted
+        return False
+
+
 def request_media_delete(service: Resource, new_media_item, media_item):
-    """ Request media deletion, and  """
-    print(f"Please delete {media_item['productUrl']} (updated to {new_media_item['productUrl']})")
+    """ Request media deletion, and wait for the user to delete the media.
+    Returns True if the media was deleted, and False if the replacement was deleted. """
+    print(f"Please delete {media_item['productUrl']}\n"
+          f"    (updated to {new_media_item['productUrl']})\n"
+          f"    Or delete the uploaded media to skip this media compression.")
+
     for i in range(1, 600851475143):
-        try:
-            service.mediaItems().get(mediaItemId=media_item["id"]).execute()
-        except googleapiclient.errors.HttpError:
-            # media ID not found, so we can skip
-            break
+        if not media_exists(service, media_item):
+            return True
+
+        if not media_exists(service, new_media_item):
+            return False
 
         # increment wait time every attempt
         time.sleep(min((i // 3) + 1, 5))
@@ -305,10 +339,7 @@ def replace_media(service: Resource, media_item, filepath):
         return
 
     # delete the old media item
-    request_media_delete(service, new_media_item, media_item)
+    print(f"Requesting deletion of {media_item['id']}.")
+    deleted = request_media_delete(service, new_media_item, media_item)
+    return deleted
 
-    print(f"Uploaded {new_media_item['id']} and marked {media_item['id']} for deletion.")
-
-
-if __name__ == '__main__':
-    main()
