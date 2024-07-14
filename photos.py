@@ -1,9 +1,8 @@
-import datetime
-
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build, Resource
 import googleapiclient.errors
 from google.auth.transport.requests import Request
+import datetime
 import dateutil.parser
 import pickle
 import requests
